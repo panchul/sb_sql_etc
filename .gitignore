@@ -1,5 +1,11 @@
 
 .DS_Store
+~*
+*.diffs
+.idea/
+
+*.out
+!postgre_aggregate/test/expected/*.out
 
 # Prerequisites
 *.d
@@ -31,5 +37,4 @@
 
 # Executables
 *.exe
-*.out
 *.app
