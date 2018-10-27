@@ -9,6 +9,17 @@ SELECT * FROM myownints1;
 
 SELECT median(val) FROM myownints1;
 
+-- MY OWN TEST, medium table with ints
+CREATE TABLE myownints_medium (val int);
+
+INSERT INTO myownints_medium(val)
+SELECT *
+FROM generate_series(0, 10);
+
+SELECT * FROM myownints_medium;
+
+SELECT median(val) FROM myownints_medium;
+
 -- MY OWN TEST, large table with ints
 CREATE TABLE myownints2 (val int);
 

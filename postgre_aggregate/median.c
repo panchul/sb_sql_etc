@@ -5,6 +5,8 @@
 PG_MODULE_MAGIC;
 #endif
 
+#define MEDIAN_EXTENSION_MAX_SIZE 100001
+
 PG_FUNCTION_INFO_V1(median_transfn);
 
 /*
@@ -29,44 +31,28 @@ median_transfn(PG_FUNCTION_ARGS)
 
     if (state == NULL)
 	{
-		// Allocate memory to a new median state array */
-		Size arrsize = sizeof(Datum) * 2; // for the prototype, we just use 2 values - n and current_avg
+		// Allocate memory to a new median state array
+		Size arrsize = sizeof(Datum) * (MEDIAN_EXTENSION_MAX_SIZE + 1); // [0] - n, the rest is an array
 
 		state = MemoryContextAllocZero(agg_context, VARHDRSZ + arrsize);
 		SET_VARSIZE(state, VARHDRSZ + arrsize);
 		
-		((Datum *) VARDATA(state))[0] = Int32GetDatum(0);
-		((Datum *) VARDATA(state))[1] = Int32GetDatum(0);
+		((Datum *) VARDATA(state))[0] = 0;
     }
 
     median_data = (Datum *) VARDATA(state);
     
-    // We should be using two priority_queues, but that might take a lot of memory.
-    //
-    // Let's keep portion of the samples and count how many of them are outsied of the interval we keep.
-    //
+    // Presuming memory is not an issue, we should be using two priority_queues, but let's try simple array.
+    // In case memory is restricted, we can try keeping portion of the samples and counts how many of them are outside
+    // of the interval we keep.
     
-    // TODO
+    if(MEDIAN_EXTENSION_MAX_SIZE >= median_data[0] && !PG_ARGISNULL(1)) {
     
-    // DEBUG (wrong answer, but it produces some numbers, I want to see them coming up in psql)
-    // As a debug thing to figure out how to write these extensions, let's do the approximation
-    // instead, an average value, with just one formula. 
-    // new_avg = (prev_avg * n + x)/(n+1)
-    //     
-    median_data[1] = Int32GetDatum(
-                            (DatumGetInt32(median_data[1]) * DatumGetInt32(median_data[0])
-                            + DatumGetInt32(val_datum) )
-                            / 
-                            (DatumGetInt32(median_data[0]) + 1)
-                      );
+        median_data[median_data[0] + 1] = val_datum;
     
-    // n++
-    median_data[0] = Int32GetDatum(DatumGetInt32(median_data[0]) + 1);
-    
-    //Doe not worke like this. Which one is the function I could use for tracing without actual debugging?... 
-    //elog(DEBUG,"median_dat[0] is now %d", DatumGetInt32(median_data[0]));
-
-    // PG_RETURN_NULL();
+        // n++
+        median_data[0] = median_data[0] + 1;
+    }
     PG_RETURN_BYTEA_P(state);
 }
 
@@ -83,9 +69,10 @@ PG_FUNCTION_INFO_V1(median_finalfn);
 Datum
 median_finalfn(PG_FUNCTION_ARGS)
 {
-    Datum *median_data; // n , median
+    Datum *median_data; // n , [array of values]
     bytea *state;
     //Datum val_datum = PG_GETARG_DATUM(1);
+    Datum tmp;
 
     MemoryContext agg_context;
 
@@ -98,7 +85,16 @@ median_finalfn(PG_FUNCTION_ARGS)
 	state = PG_GETARG_BYTEA_P(0);
     median_data = (Datum *) VARDATA(state);
 
-//    PG_RETURN_NULL();
-    PG_RETURN_DATUM(median_data[1]); // Int32GetDatum(123)
+    // Stupidly-ineffective bubble sort, but works. Better switch to the existing better one.
+    for(long int i = 1; i < median_data[0]; ++i) {
+        for(long int j = i; j < median_data[0]; ++j) {
+            if(median_data[j] > median_data[j+1]) {
+                tmp = median_data[j];
+                median_data[j] = median_data[j+1];
+                median_data[j+1] = tmp;
+            }
+        }
+    }
+    PG_RETURN_DATUM(median_data[median_data[0]/2 + 1]);
 }
 
