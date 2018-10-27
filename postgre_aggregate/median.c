@@ -46,6 +46,10 @@ median_transfn(PG_FUNCTION_ARGS)
     // In case memory is restricted, we can try keeping portion of the samples and counts how many of them are outside
     // of the interval we keep.
     
+    // TODO: !PG_ARGISNULL(1) does not seem to be working as expected
+    // e.g. (NULL, 'e') still being counted.
+    //
+          
     if(MEDIAN_EXTENSION_MAX_SIZE >= median_data[0] && !PG_ARGISNULL(1)) {
     
         median_data[median_data[0] + 1] = val_datum;
@@ -65,7 +69,7 @@ PG_FUNCTION_INFO_V1(median_finalfn);
  * processed by the state transfer function. It should perform any necessary
  * post processing and clean up any temporary state.
  */
-// median_finalfn(internal, val INTEGER) => INTEGER
+// median_finalfn(internal, val)
 Datum
 median_finalfn(PG_FUNCTION_ARGS)
 {
@@ -85,7 +89,8 @@ median_finalfn(PG_FUNCTION_ARGS)
 	state = PG_GETARG_BYTEA_P(0);
     median_data = (Datum *) VARDATA(state);
 
-    // Stupidly-ineffective bubble sort, but works. Better switch to the existing better one.
+    // Ineffective bubble sort, but works. Better switch to the existing better one.
+    // NOTE: firs element in median_data[] is number of elements
     for(long int i = 1; i < median_data[0]; ++i) {
         for(long int j = i; j < median_data[0]; ++j) {
             if(median_data[j] > median_data[j+1]) {
@@ -95,6 +100,10 @@ median_finalfn(PG_FUNCTION_ARGS)
             }
         }
     }
+    
+    // Maybe deallocate median_data, although, histogram.c implementation does not deallocate
+    // anything, so, we seem to not have to too.
+    
     PG_RETURN_DATUM(median_data[median_data[0]/2 + 1]);
 }
 
