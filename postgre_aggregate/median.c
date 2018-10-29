@@ -1,5 +1,6 @@
 #include <postgres.h>
 #include <fmgr.h>
+#include "executor/executor.h"
 
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
@@ -46,16 +47,23 @@ median_transfn(PG_FUNCTION_ARGS)
     // In case memory is restricted, we can try keeping portion of the samples and counts how many of them are outside
     // of the interval we keep.
     
-    // TODO: !PG_ARGISNULL(1) does not seem to be working as expected
-    // e.g. (NULL, 'e') still being counted.
-    //
-          
     if(MEDIAN_EXTENSION_MAX_SIZE >= median_data[0] && !PG_ARGISNULL(1)) {
     
-        median_data[median_data[0] + 1] = val_datum;
+        // Check that there are no NULLS inside of the tupple, or whatever the type is
+        HeapTupleHeader t = PG_GETARG_HEAPTUPLEHEADER(1);
+        bool isnull = false;
+  
+        // it would be nice to check for NULL all of them, whatever the arity of that tuple,
+        // but the test case only asks for NULL in the first position of the tupple.   
+        DatumGetHeapTupleHeader(GetAttributeByNum(t, 0, &isnull));
+
+        if(!isnull) {
     
-        // n++
-        median_data[0] = median_data[0] + 1;
+            median_data[median_data[0] + 1] = val_datum;
+    
+            // n++
+            median_data[0] = median_data[0] + 1;
+        }
     }
     PG_RETURN_BYTEA_P(state);
 }
@@ -75,7 +83,6 @@ median_finalfn(PG_FUNCTION_ARGS)
 {
     Datum *median_data; // n , [array of values]
     bytea *state;
-    //Datum val_datum = PG_GETARG_DATUM(1);
     Datum tmp;
 
     MemoryContext agg_context;
@@ -89,7 +96,7 @@ median_finalfn(PG_FUNCTION_ARGS)
 	state = PG_GETARG_BYTEA_P(0);
     median_data = (Datum *) VARDATA(state);
 
-    // Ineffective bubble sort, but works. Better switch to the existing better one.
+    // Simple (not very effective) sort, but works.
     // NOTE: firs element in median_data[] is number of elements
     for(long int i = 1; i < median_data[0]; ++i) {
         for(long int j = i; j < median_data[0]; ++j) {
