@@ -1,0 +1,23 @@
+# Java / Spark local installs
+spark/
+*.tgz
+*.tar.gz
+*.zip
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Scala / build artifacts
+*.class
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
